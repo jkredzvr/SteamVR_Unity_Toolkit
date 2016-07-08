@@ -2,6 +2,7 @@
 {
     using UnityEngine;
     using System.Collections;
+    using System.Collections.Generic;
 
     public class VRTK_ControllerActions : MonoBehaviour
     {
@@ -12,6 +13,8 @@
         private SteamVR_TrackedObject trackedController;
         private SteamVR_Controller.Device device;
         private ushort maxHapticVibration = 3999;
+
+        private Dictionary<GameObject, Material> storedMaterials;
 
         public bool IsControllerVisible()
         {
@@ -43,7 +46,7 @@
             alpha = Mathf.Clamp(alpha, 0f, 1f);
             foreach (var renderer in this.gameObject.GetComponentsInChildren<Renderer>())
             {
-                if(alpha < 1f)
+                if (alpha < 1f)
                 {
                     renderer.material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
                     renderer.material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
@@ -52,7 +55,8 @@
                     renderer.material.DisableKeyword("_ALPHABLEND_ON");
                     renderer.material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
                     renderer.material.renderQueue = 3000;
-                } else
+                }
+                else
                 {
                     renderer.material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
                     renderer.material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
@@ -65,6 +69,63 @@
 
                 renderer.material.color = new Color(renderer.material.color.r, renderer.material.color.g, renderer.material.color.b, alpha);
             }
+        }
+
+        public void HighlightControllerElement(GameObject element, Color highlight)
+        {
+            var renderer = element.GetComponent<Renderer>();
+            if (renderer && renderer.material)
+            {
+                storedMaterials.Add(element, new Material(renderer.material));
+                renderer.material.color = highlight;
+                renderer.material.shader = Shader.Find("Unlit/Color");
+            }
+        }
+
+        public void UnhighlightControllerElement(GameObject element)
+        {
+            var renderer = element.GetComponent<Renderer>();
+            if (renderer && renderer.material)
+            {
+                renderer.material = new Material(storedMaterials[element]);
+                storedMaterials.Remove(element);
+            }
+        }
+
+        public void ToggleHighlightControllerElement(bool state, GameObject element, Color highlight)
+        {
+            if (element)
+            {
+                if (state)
+                {
+                    HighlightControllerElement(element.gameObject, highlight);
+                }
+                else
+                {
+                    UnhighlightControllerElement(element.gameObject);
+                }
+            }
+        }
+
+        public void ToggleHighlightTrigger(bool state, Color highlight)
+        {
+            ToggleHighlightAlias(state, "Model/trigger", highlight);
+        }
+
+        public void ToggleHighlightGrip(bool state, Color highlight)
+        {
+            ToggleHighlightAlias(state, "Model/lgrip", highlight);
+            ToggleHighlightAlias(state, "Model/rgrip", highlight);
+        }
+
+        public void ToggleHighlightTouchpad(bool state, Color highlight)
+        {
+            ToggleHighlightAlias(state, "Model/trackpad", highlight);
+        }
+
+        public void ToggleHighlightApplicationMenu(bool state, Color highlight)
+        {
+            ToggleHighlightAlias(state, "Model/button", highlight);
         }
 
         public void TriggerHapticPulse(ushort strength)
@@ -83,6 +144,7 @@
         {
             trackedController = GetComponent<SteamVR_TrackedObject>();
             this.gameObject.layer = LayerMask.NameToLayer("Ignore Raycast");
+            storedMaterials = new Dictionary<GameObject, Material>();
         }
 
         private void Update()
@@ -103,6 +165,15 @@
                 device.TriggerHapticPulse((ushort)hapticPulseStrength);
                 yield return new WaitForSeconds(pulseInterval);
                 duration -= pulseInterval;
+            }
+        }
+
+        private  void ToggleHighlightAlias(bool state, string transformPath, Color highlight)
+        {
+            var element = transform.Find(transformPath);
+            if (element)
+            {
+                ToggleHighlightControllerElement(state, element.gameObject, highlight);
             }
         }
     }
